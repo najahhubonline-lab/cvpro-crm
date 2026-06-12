@@ -6,6 +6,7 @@ import { Customers } from './pages/Customers';
 import { Conversations } from './pages/Conversations';
 import { Broadcasts } from './pages/Broadcasts';
 import { Settings } from './pages/Settings';
+import { Tasks } from './pages/Tasks';
 import { Login } from './pages/Login';
 import { Toast } from './components/Toast';
 import { api } from './services/api';
@@ -18,7 +19,6 @@ export default function App() {
   const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    // CRITICAL SECURITY FIX: Rely on HttpOnly cookie to refresh session, not localStorage
     api.refresh()
       .then(() => setIsAuthenticated(true))
       .catch(() => setIsAuthenticated(false))
@@ -42,9 +42,7 @@ export default function App() {
         }
       });
 
-      return () => {
-        newSocket.disconnect();
-      };
+      return () => { newSocket.disconnect(); };
     }
   }, [isAuthenticated]);
 
@@ -58,28 +56,18 @@ export default function App() {
     if (socket) socket.disconnect();
   };
 
-  if (isLoading) {
-    return <div className="h-screen w-screen flex items-center justify-center bg-slate-50">Loading...</div>;
-  }
-
-  if (!isAuthenticated) {
-    return <Login onLoginSuccess={() => setIsAuthenticated(true)} />;
-  }
+  if (isLoading) return <div className="h-screen w-screen flex items-center justify-center bg-slate-50">Loading...</div>;
+  if (!isAuthenticated) return <Login onLoginSuccess={() => setIsAuthenticated(true)} />;
 
   const renderView = () => {
     switch (currentView) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'customers':
-        return <Customers />;
-      case 'conversations':
-        return <Conversations />;
-      case 'broadcasts':
-        return <Broadcasts />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Dashboard />;
+      case 'dashboard': return <Dashboard />;
+      case 'customers': return <Customers />;
+      case 'conversations': return <Conversations />;
+      case 'broadcasts': return <Broadcasts />;
+      case 'settings': return <Settings />;
+      case 'tasks': return <Tasks />;
+      default: return <Dashboard />;
     }
   };
 
@@ -92,13 +80,7 @@ export default function App() {
 
       <div className="absolute top-4 right-4 z-50 flex flex-col space-y-2">
         {notifications.map(notif => (
-          <Toast 
-            key={notif.id} 
-            id={notif.id} 
-            title={notif.title} 
-            message={notif.message} 
-            onClose={removeNotification} 
-          />
+          <Toast key={notif.id} id={notif.id} title={notif.title} message={notif.message} onClose={removeNotification} />
         ))}
       </div>
     </div>

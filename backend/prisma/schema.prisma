@@ -59,6 +59,7 @@ model User {
 }
 
 model Customer {
+  orders      Order[]
   id          String    @id @default(uuid())
   phone       String    @unique
   name        String?
@@ -88,6 +89,7 @@ model Conversation {
 }
 
 model Message {
+  cvText         String?
   id             String        @id @default(uuid())
   conversationId String
   waMessageId    String?       @unique
@@ -157,4 +159,60 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model AiConfig {
+  id           String   @id @default(uuid())
+  masterPrompt String   @default("You are an expert sales assistant for Taskora, a platform that automates CV writing and LinkedIn optimization for the GCC market. Your goal is to analyze the customer's CV, provide an ATS compatibility score, and guide them to purchase one of our packages. Keep your answers concise, professional, and use emojis sparingly. Always speak in the customer's preferred language (Arabic or English).")
+  packages     Json     @default("[{\"id\":\"basic\",\"name\":\"Basic Package\",\"priceAED\":299,\"priceUSD\":81,\"features\":[\"Professional CV Rewrite\",\"ATS Keyword Optimization\",\"PDF & DOCX Delivery\"]},{\"id\":\"premium\",\"name\":\"Premium Package\",\"priceAED\":599,\"priceUSD\":163,\"features\":[\"Everything in Basic\",\"LinkedIn Profile Optimization\",\"Custom Cover Letter\",\"1 Revision\"]},{\"id\":\"executive\",\"name\":\"Executive Package\",\"priceAED\":999,\"priceUSD\":272,\"features\":[\"Everything in Premium\",\"Career Branding Strategy\",\"30-Day WhatsApp Support\",\"Interview Prep Guide\"]}]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+
+
+model ServiceType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  priceAED    Float
+  priceUSD    Float
+  features    Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  orders      Order[]
+}
+
+model Order {
+  id            String        @id @default(uuid())
+  customerId    String
+  serviceTypeId String
+  status        String        @default("PENDING")
+  totalAmount   Float
+  currency      String        @default("AED")
+  paymentLink   String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  serviceType   ServiceType   @relation(fields: [serviceTypeId], references: [id])
+  tasks         Task[]
+  @@index([customerId])
+  @@index([status])
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  orderId     String
+  assignedTo  String?
+  type        String
+  status      String   @default("TODO")
+  outputUrl   String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@index([orderId])
+  @@index([assignedTo])
+  @@index([status])
 }

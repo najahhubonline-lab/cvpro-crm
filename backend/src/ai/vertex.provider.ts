@@ -6,8 +6,10 @@ export const VERTEX_AI_CLIENT = 'VERTEX_AI_CLIENT';
 export const VertexProvider: Provider = {
   provide: VERTEX_AI_CLIENT,
   useFactory: () => {
-    // The SDK strictly requires process.env.API_KEY to be set.
-    // We initialize it exactly as per the guidelines.
-    return new GoogleGenAI({ apiKey: process.env.API_KEY, vertexai: true });
+    return new GoogleGenAI({
+      vertexai: true,
+      project: process.env.GOOGLE_CLOUD_PROJECT || 'cvpro-499119',
+      location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
+    });
   },
 };

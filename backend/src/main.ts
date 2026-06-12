@@ -4,7 +4,7 @@ import * as profiler from '@google-cloud/profiler';
 
 if (process.env.NODE_ENV === 'production') {
   trace.start();
-  profiler.start({ serviceContext: { service: 'cvpro-backend' } }).catch(console.error);
+  profiler.start({ serviceContext: { service: 'taskora-backend' } }).catch(console.error);
 }
 
 import { NestFactory } from '@nestjs/core';

@@ -22,6 +22,9 @@ import { TemplatesModule } from './templates/templates.module';
 import { EventsModule } from './events/events.module';
 import { StorageModule } from './storage/storage.module';
 import { HealthModule } from './health/health.module';
+import { CvAnalyzerModule } from './cv-analyzer/cv-analyzer.module';
+import { OperationsModule } from './operations/operations.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -76,6 +79,9 @@ import { HealthModule } from './health/health.module';
     AiModule,
     BroadcastsModule,
     TemplatesModule,
+    CvAnalyzerModule,
+    OperationsModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}

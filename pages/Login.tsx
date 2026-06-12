@@ -18,7 +18,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     try {
       await api.login({ email, password });
-      // Token is now securely stored in memory within api.ts
       onLoginSuccess();
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -31,11 +30,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
         <div>
-          <div className="mx-auto w-12 h-12 bg-brand-500 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-2xl">C</span>
+          <div className="mx-auto w-12 h-12 bg-brand-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-2xl">T</span>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
-            Sign in to CVPRO
+            Sign in to Taskora
           </h2>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

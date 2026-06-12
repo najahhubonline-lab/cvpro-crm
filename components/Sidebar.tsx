@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Users, MessageSquare, Megaphone, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Megaphone, Settings as SettingsIcon, LogOut, Zap, CheckCircle } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
@@ -13,15 +13,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, o
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'conversations', label: 'Conversations', icon: MessageSquare },
     { id: 'broadcasts', label: 'Broadcasts', icon: Megaphone },
+    { id: 'tasks', label: 'Team Tasks', icon: CheckCircle },
   ];
 
   return (
     <div className="w-64 bg-slate-900 text-slate-300 flex flex-col h-full">
       <div className="p-6 flex items-center space-x-3">
-        <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-xl">C</span>
+        <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+          <Zap className="text-white" size={20} />
         </div>
-        <span className="text-white font-bold text-xl tracking-tight">CVPRO</span>
+        <span className="text-white font-bold text-xl tracking-tight">Taskora</span>
       </div>
 
       <nav className="flex-1 px-4 space-y-1 mt-4">

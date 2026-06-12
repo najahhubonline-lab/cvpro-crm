@@ -10,3 +10,14 @@ cloud-sql-proxy
 *.tfstate
 *.tfstate.backup
 .DS_Store
+node_modules/
+.env
+.env.local
+dist/
+build/
+github-deployer-key.json
+*.zip
+.env.production
+cvpro.zip
+backend/.env.local
+frontend/backend/.env.local

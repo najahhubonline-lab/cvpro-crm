@@ -1,9 +1,6 @@
-import { DashboardStats } from '../types';
-
 const API_URL = '/api/v1';
 
 class ApiService {
-  // CRITICAL SECURITY FIX: Store access token in memory, not localStorage (prevents XSS theft)
   private accessToken: string | null = null;
 
   private getHeaders(): HeadersInit {
@@ -26,7 +23,6 @@ class ApiService {
             const { access_token } = await refreshRes.json();
             this.accessToken = access_token;
             
-            // Retry original request with new token
             const retryResponse = await originalRequest();
             if (retryResponse.ok) return retryResponse.json();
           }
@@ -72,63 +68,44 @@ class ApiService {
       method: 'POST',
       credentials: 'include',
     });
-    if (!response.ok) {
-      throw new Error('Session expired');
-    }
+    if (!response.ok) throw new Error('Session expired');
     const data = await response.json();
     this.accessToken = data.access_token;
   }
 
   async logout(): Promise<void> {
-    await fetch(`${API_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
     this.accessToken = null;
   }
 
-  async getDashboardStats(): Promise<DashboardStats> {
-    return this.fetchWithAuth('/dashboard/stats');
-  }
-
-  async getCustomers(skip = 0, take = 50): Promise<{ data: any[], total: number }> {
-    return this.fetchWithAuth(`/customers?skip=${skip}&take=${take}`);
-  }
-
-  async getConversations(): Promise<any[]> {
-    return this.fetchWithAuth('/conversations');
-  }
-
-  async getMessages(conversationId: string): Promise<any[]> {
-    return this.fetchWithAuth(`/messages/conversation/${conversationId}`);
-  }
-
+  async getDashboardStats(): Promise<any> { return this.fetchWithAuth('/dashboard/stats'); }
+  async getCustomers(skip = 0, take = 50): Promise<{ data: any[], total: number }> { return this.fetchWithAuth(`/customers?skip=${skip}&take=${take}`); }
+  async getConversations(): Promise<any[]> { return this.fetchWithAuth('/conversations'); }
+  async getMessages(conversationId: string): Promise<any[]> { return this.fetchWithAuth(`/messages/conversation/${conversationId}`); }
   async sendMessage(conversationId: string, text: string): Promise<any> {
-    return this.fetchWithAuth(`/messages/conversation/${conversationId}`, {
-      method: 'POST',
-      body: JSON.stringify({ text }),
-    });
+    return this.fetchWithAuth(`/messages/conversation/${conversationId}`, { method: 'POST', body: JSON.stringify({ text }) });
   }
-
   async toggleBot(conversationId: string, botActive: boolean): Promise<any> {
-    return this.fetchWithAuth(`/conversations/${conversationId}/bot`, {
-      method: 'PATCH',
-      body: JSON.stringify({ botActive }),
-    });
+    return this.fetchWithAuth(`/conversations/${conversationId}/bot`, { method: 'PATCH', body: JSON.stringify({ botActive }) });
   }
-
-  async getTemplates(): Promise<any[]> {
-    return this.fetchWithAuth('/templates');
-  }
-
-  async getBroadcasts(): Promise<any[]> {
-    return this.fetchWithAuth('/broadcasts');
-  }
-
+  async getTemplates(): Promise<any[]> { return this.fetchWithAuth('/templates'); }
+  async getBroadcasts(): Promise<any[]> { return this.fetchWithAuth('/broadcasts'); }
   async createBroadcast(data: any): Promise<any> {
-    return this.fetchWithAuth('/broadcasts', {
-      method: 'POST',
-      body: JSON.stringify(data),
+    return this.fetchWithAuth('/broadcasts', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  // AI Config
+  async getAiConfig(): Promise<any> { return this.fetchWithAuth('/settings/ai-config'); }
+  async updateAiConfig(data: any): Promise<any> {
+    return this.fetchWithAuth('/settings/ai-config', { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  // Team Tasks
+  async getTasks(): Promise<any[]> { return this.fetchWithAuth('/operations/tasks'); }
+  async updateTaskStatus(taskId: string, status: string, outputUrl?: string): Promise<any> {
+    return this.fetchWithAuth(`/operations/tasks/${taskId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, outputUrl }),
     });
   }
 }
