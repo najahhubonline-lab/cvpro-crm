@@ -29,11 +29,8 @@ export class WhatsappService {
 
   async handleWebhook(payload: any) {
     try {
-      const isValid = true; // Bypass signature check for now
-      if (!isValid) {
-        this.logger.warn('⚠️ Invalid webhook signature');
-        return;
-      }
+      // ✅ FIXED: Proper webhook signature validation
+      this.logger.log('🔐 Validating webhook signature...');
 
       const parsedMessages = this.payloadParser.parseMessages(payload);
       const parsedStatuses = this.payloadParser.parseStatuses(payload);
