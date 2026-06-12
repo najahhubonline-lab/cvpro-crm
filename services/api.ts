@@ -1,111 +1,100 @@
-const API_URL = '/api/v1';
+const API_BASE = '/api/v1';
 
 class ApiService {
-  private accessToken: string | null = null;
-
-  private getHeaders(): HeadersInit {
-    return {
-      'Content-Type': 'application/json',
-      ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
-    };
+  private getToken(): string | null {
+    return localStorage.getItem('token');
   }
 
-  private async handleResponse<T>(response: Response, originalRequest?: () => Promise<Response>): Promise<T> {
-    if (!response.ok) {
-      if (response.status === 401 && originalRequest) {
-        try {
-          const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
-            method: 'POST',
-            credentials: 'include', 
-          });
-          
-          if (refreshRes.ok) {
-            const { access_token } = await refreshRes.json();
-            this.accessToken = access_token;
-            
-            const retryResponse = await originalRequest();
-            if (retryResponse.ok) return retryResponse.json();
-          }
-        } catch (e) {
-          console.error('Token refresh failed', e);
-        }
-        
-        this.accessToken = null;
-        window.location.reload();
-      }
-      
-      const error = await response.json().catch(() => ({ message: 'An error occurred' }));
-      throw new Error(error.message || 'API request failed');
+  private async request(endpoint: string, options: RequestInit = {}) {
+    const token = this.getToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      throw new Error(error.message || `HTTP ${response.status}`);
+    }
+
     return response.json();
   }
 
-  private async fetchWithAuth(endpoint: string, options: RequestInit = {}): Promise<any> {
-    const executeFetch = () => fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers: { ...this.getHeaders(), ...options.headers },
-      credentials: 'include', 
-    });
-
-    const response = await executeFetch();
-    return this.handleResponse(response, executeFetch);
-  }
-
-  async login(credentials: any): Promise<{ access_token: string; user: any }> {
-    const response = await fetch(`${API_URL}/auth/login`, {
+  // Auth
+  async login(email: string, password: string) {
+    const response = await this.request('/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
-      credentials: 'include', 
+      body: JSON.stringify({ email, password }),
     });
-    const data = await this.handleResponse<{ access_token: string; user: any }>(response);
-    this.accessToken = data.access_token;
-    return data;
+    if (response.token) {
+      localStorage.setItem('token', response.token);
+    }
+    return response;
   }
 
-  async refresh(): Promise<void> {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
+  async logout() {
+    localStorage.removeItem('token');
+  }
+
+  // Conversations
+  async getConversations() {
+    return this.request('/conversations');
+  }
+
+  async getMessages(conversationId: string) {
+    return this.request(`/messages/${conversationId}`);
+  }
+
+  async sendMessage(conversationId: string, text: string, sender: string) {
+    return this.request(`/messages/${conversationId}`, {
       method: 'POST',
-      credentials: 'include',
+      body: JSON.stringify({ text, sender }),
     });
-    if (!response.ok) throw new Error('Session expired');
-    const data = await response.json();
-    this.accessToken = data.access_token;
   }
 
-  async logout(): Promise<void> {
-    await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
-    this.accessToken = null;
+  // Customers
+  async getCustomers() {
+    return this.request('/customers');
   }
 
-  async getDashboardStats(): Promise<any> { return this.fetchWithAuth('/dashboard/stats'); }
-  async getCustomers(skip = 0, take = 50): Promise<{ data: any[], total: number }> { return this.fetchWithAuth(`/customers?skip=${skip}&take=${take}`); }
-  async getConversations(): Promise<any[]> { return this.fetchWithAuth('/conversations'); }
-  async getMessages(conversationId: string): Promise<any[]> { return this.fetchWithAuth(`/messages/conversation/${conversationId}`); }
-  async sendMessage(conversationId: string, text: string): Promise<any> {
-    return this.fetchWithAuth(`/messages/conversation/${conversationId}`, { method: 'POST', body: JSON.stringify({ text }) });
-  }
-  async toggleBot(conversationId: string, botActive: boolean): Promise<any> {
-    return this.fetchWithAuth(`/conversations/${conversationId}/bot`, { method: 'PATCH', body: JSON.stringify({ botActive }) });
-  }
-  async getTemplates(): Promise<any[]> { return this.fetchWithAuth('/templates'); }
-  async getBroadcasts(): Promise<any[]> { return this.fetchWithAuth('/broadcasts'); }
-  async createBroadcast(data: any): Promise<any> {
-    return this.fetchWithAuth('/broadcasts', { method: 'POST', body: JSON.stringify(data) });
+  async updateCustomer(id: string, data: any) {
+    return this.request(`/customers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
-  // AI Config
-  async getAiConfig(): Promise<any> { return this.fetchWithAuth('/settings/ai-config'); }
-  async updateAiConfig(data: any): Promise<any> {
-    return this.fetchWithAuth('/settings/ai-config', { method: 'PATCH', body: JSON.stringify(data) });
+  // Tasks (Team Portal)
+  async getTasks() {
+    return this.request('/operations/tasks');
   }
 
-  // Team Tasks
-  async getTasks(): Promise<any[]> { return this.fetchWithAuth('/operations/tasks'); }
-  async updateTaskStatus(taskId: string, status: string, outputUrl?: string): Promise<any> {
-    return this.fetchWithAuth(`/operations/tasks/${taskId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status, outputUrl }),
+  async updateTaskStatus(taskId: string, status: string) {
+    return this.request(`/operations/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  // Settings
+  async getAiConfig() {
+    return this.request('/settings/ai-config');
+  }
+
+  async updateAiConfig(data: any) {
+    return this.request('/settings/ai-config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   }
 }

@@ -7,11 +7,13 @@ import { SignatureValidatorService } from './signature-validator.service';
 import { PayloadParserService } from './payload-parser.service';
 import { WhatsappProcessor } from './whatsapp.processor';
 import { AiModule } from '../ai/ai.module';
+import { CvAnalyzerModule } from '../cv-analyzer/cv-analyzer.module';
 import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
-    AiModule, 
+    AiModule,
+    CvAnalyzerModule, 
     StorageModule,
     BullModule.registerQueue({
       name: 'incoming-messages',
