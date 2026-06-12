@@ -3,24 +3,25 @@ import { api } from '../services/api';
 
 interface LoginProps {
   onLoginSuccess: () => void;
+  error?: string | null;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+export const Login: React.FC<LoginProps> = ({ onLoginSuccess, error }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setLoginError('');
     setLoading(true);
 
     try {
       await api.login({ email, password });
       onLoginSuccess();
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setLoginError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -38,9 +39,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </h2>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
+          {(error || loginError) && (
             <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm text-center">
-              {error}
+              {error || loginError}
             </div>
           )}
           <div className="rounded-md shadow-sm space-y-4">

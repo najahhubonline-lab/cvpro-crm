@@ -20,6 +20,7 @@ export class TelegramService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (process.env.WORKER_MODE === 'true') { this.logger.log('Telegram bot disabled in worker mode to prevent polling conflicts.'); return; }
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
       this.logger.warn('⚠️ TELEGRAM_BOT_TOKEN not set, Telegram bot disabled');

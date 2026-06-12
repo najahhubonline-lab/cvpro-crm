@@ -1,260 +1,295 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, User, Bot, Check, CheckCheck, Loader2 } from 'lucide-react';
+import { Search, Send, Bot, User, Check, CheckCheck, MessageSquare, Loader2 } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
 import { api } from '../services/api';
+import { MessageSender, MessageStatus } from '../types';
 
 export const Conversations: React.FC = () => {
   const [conversations, setConversations] = useState<any[]>([]);
-  const [selectedConv, setSelectedConv] = useState<any>(null);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [messageInput, setMessageInput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [botActive, setBotActive] = useState(true);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const activeConvIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    activeConvIdRef.current = activeConvId;
+  }, [activeConvId]);
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        const data = await api.getConversations();
+        setConversations(data);
+        if (data.length > 0 && !activeConvId) {
+          setActiveConvId(data[0].id);
+          setBotActive(data[0].botActive);
+        }
+      } catch (error) {
+        console.error("Failed to fetch conversations", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchConversations();
-    const interval = setInterval(fetchConversations, 5000); // Auto-refresh every 5s
-    return () => clearInterval(interval);
+
+    const socketUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3000' : '/';
+    socketRef.current = io(socketUrl);
+    
+    socketRef.current.on('newMessage', (msg: any) => {
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        if (activeConvIdRef.current === msg.conversationId) {
+          return [...prev, msg];
+        }
+        return prev;
+      });
+    });
+
+    socketRef.current.on('conversationUpdate', (conv: any) => {
+      setConversations(prev => {
+        const exists = prev.find(c => c.id === conv.id);
+        if (exists) {
+          return prev.map(c => c.id === conv.id ? conv : c).sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+        }
+        return [conv, ...prev].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+      });
+      
+      if (conv.id === activeConvIdRef.current) {
+        setBotActive(conv.botActive);
+      }
+    });
+
+    return () => {
+      socketRef.current?.disconnect();
+    };
   }, []);
 
   useEffect(() => {
-    if (selectedConv) {
-      fetchMessages(selectedConv.id);
+    if (activeConvId) {
+      const fetchMessages = async () => {
+        try {
+          const data = await api.getMessages(activeConvId);
+          setMessages(data);
+          const conv = conversations.find(c => c.id === activeConvId);
+          if (conv) setBotActive(conv.botActive);
+        } catch (error) {
+          console.error("Failed to fetch messages", error);
+        }
+      };
+      fetchMessages();
     }
-  }, [selectedConv]);
+  }, [activeConvId, conversations]);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const fetchConversations = async () => {
-    try {
-      const res = await api.getConversations();
-      setConversations(res || []);
-    } catch (err) {
-      console.error('Failed to fetch conversations', err);
-    }
-  };
-
-  const fetchMessages = async (convId: string) => {
-    try {
-      const res = await api.getMessages(convId);
-      setMessages(res || []);
-    } catch (err) {
-      console.error('Failed to fetch messages', err);
-    }
-  };
-
-  const handleSendText = async () => {
-    if (!newMessage.trim() || !selectedConv) return;
+  const handleToggleBot = async () => {
+    const activeConv = conversations.find(c => c.id === activeConvId);
+    if (!activeConv) return;
     
-    setSending(true);
     try {
-      await api.sendMessage(selectedConv.id, newMessage, 'AGENT');
-      setNewMessage('');
-      await fetchMessages(selectedConv.id);
-      await fetchConversations();
-    } catch (err) {
-      console.error('Failed to send message', err);
-      alert('فشل إرسال الرسالة');
-    } finally {
-      setSending(false);
+      const updated = await api.toggleBot(activeConv.id, !activeConv.botActive);
+      setConversations(prev => prev.map(c => c.id === updated.id ? updated : c));
+      setBotActive(updated.botActive);
+    } catch (error) {
+      console.error("Failed to toggle bot", error);
     }
   };
 
-  const handleFileUpload = async (file: File) => {
-    if (!selectedConv) return;
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !activeConvId) return;
     
-    setUploading(true);
+    const text = messageInput;
+    setMessageInput('');
+    
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('conversationId', selectedConv.id);
-      formData.append('sender', 'AGENT');
-      
-      const response = await fetch('/api/v1/messages/upload', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
+      const newMsg = await api.sendMessage(activeConvId, text);
+      setMessages(prev => {
+        if (prev.some(m => m.id === newMsg.id)) return prev;
+        return [...prev, newMsg];
       });
-      
-      if (!response.ok) throw new Error('Upload failed');
-      
-      await fetchMessages(selectedConv.id);
-      await fetchConversations();
-      alert('✅ تم إرسال الملف بنجاح!');
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      alert('❌ فشل رفع الملف: ' + err.message);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    } catch (error) {
+      console.error("Failed to send message", error);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendText();
-    }
+  const formatTime = (isoString: string) => {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-brand-600" size={32} />
-      </div>
-    );
-  }
+  const activeConv = conversations.find(c => c.id === activeConvId);
+  const activeCustomer = activeConv?.customer;
+
+  if (loading) return <div className="h-full flex items-center justify-center">Loading chats...</div>;
 
   return (
-    <div className="flex h-full bg-slate-50">
-      {/* Conversations List */}
-      <div className="w-1/3 border-r border-slate-200 bg-white overflow-y-auto">
-        <div className="p-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">المحادثات</h2>
+    <div className="h-full flex bg-white overflow-hidden">
+      {/* Sidebar List */}
+      <div className="w-80 border-r border-slate-200 flex flex-col bg-slate-50">
+        <div className="p-4 border-b border-slate-200 bg-white">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Messages</h2>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search chats..." 
+              className="w-full pl-10 pr-4 py-2 bg-slate-100 border-transparent rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
+            />
+          </div>
         </div>
-        {conversations.map((conv) => (
-          <div
-            key={conv.id}
-            onClick={() => setSelectedConv(conv)}
-            className={`p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors ${
-              selectedConv?.id === conv.id ? 'bg-brand-50' : ''
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center">
-                <User size={20} className="text-brand-600" />
+        
+        <div className="flex-1 overflow-y-auto">
+          {conversations.map(conv => {
+            const isActive = conv.id === activeConvId;
+            return (
+              <div 
+                key={conv.id}
+                onClick={() => {
+                  setActiveConvId(conv.id);
+                  setBotActive(conv.botActive);
+                }}
+                className={`p-4 border-b border-slate-100 cursor-pointer transition-colors flex items-start space-x-3 ${isActive ? 'bg-brand-50 border-l-4 border-l-brand-500' : 'hover:bg-slate-100 border-l-4 border-l-transparent'}`}
+              >
+                <div className="w-10 h-10 rounded-full bg-slate-300 flex items-center justify-center text-slate-600 font-bold flex-shrink-0">
+                  {conv.customer?.name?.charAt(0) || '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <h3 className="font-semibold text-slate-900 truncate">{conv.customer?.name || conv.customer?.phone}</h3>
+                    <span className="text-xs text-slate-500">{formatTime(conv.lastMessageAt)}</span>
+                  </div>
+                  <p className="text-sm text-slate-600 truncate">Click to view messages</p>
+                </div>
+                {conv.unreadCount > 0 && (
+                  <div className="w-5 h-5 rounded-full bg-brand-500 text-white text-xs flex items-center justify-center flex-shrink-0">
+                    {conv.unreadCount}
+                  </div>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-slate-900 truncate">
-                  {conv.customer?.name || conv.customer?.phone || 'Unknown'}
-                </p>
-                <p className="text-sm text-slate-500 truncate">
-                  {conv.lastMessage || 'لا توجد رسائل'}
-                </p>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Chat Area */}
+      {activeConv && activeCustomer ? (
+        <div className="flex-1 flex flex-col bg-[#efeae2] relative">
+          {/* Chat Header */}
+          <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm z-10">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 rounded-full bg-slate-300 flex items-center justify-center text-slate-600 font-bold">
+                {activeCustomer.name?.charAt(0) || '?'}
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-900">{activeCustomer.name || activeCustomer.phone}</h2>
+                <p className="text-xs text-slate-500">{activeCustomer.phone}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 mr-4">
+                <span className="text-sm font-medium text-slate-600">AI Assistant</span>
+                <button 
+                  onClick={handleToggleBot}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 ${botActive ? 'bg-brand-500' : 'bg-slate-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${botActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+                {botActive ? <Bot size={16} className="text-brand-500" /> : <User size={16} className="text-slate-400" />}
               </div>
             </div>
           </div>
-        ))}
-        {conversations.length === 0 && (
-          <div className="p-8 text-center text-slate-500">لا توجد محادثات</div>
-        )}
-      </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 flex flex-col">
-        {selectedConv ? (
-          <>
-            {/* Header */}
-            <div className="p-4 border-b border-slate-200 bg-white">
-              <h3 className="font-semibold text-slate-900">
-                {selectedConv.customer?.name || selectedConv.customer?.phone}
-              </h3>
-              <p className="text-sm text-slate-500">
-                {selectedConv.customer?.phone}
-              </p>
-            </div>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {messages.map((msg, idx) => {
+              const isOutbound = msg.sender === MessageSender.AI || msg.sender === MessageSender.AGENT;
+              const showSender = idx === 0 || messages[idx - 1].sender !== msg.sender;
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.sender === 'AGENT' || msg.sender === 'AI' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[70%] rounded-lg p-3 ${
-                      msg.sender === 'AGENT' || msg.sender === 'AI'
-                        ? 'bg-brand-600 text-white'
-                        : 'bg-white border border-slate-200'
-                    }`}
-                  >
-                    {msg.mediaUrl ? (
-                      <div>
-                        <a
-                          href={msg.mediaUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`flex items-center gap-2 ${
-                            msg.sender === 'AGENT' || msg.sender === 'AI'
-                              ? 'text-white hover:text-brand-100'
-                              : 'text-brand-600 hover:text-brand-700'
-                          }`}
-                        >
-                          <Paperclip size={16} />
-                          <span>عرض الملف المرفق</span>
-                        </a>
-                        {msg.text && <p className="mt-2">{msg.text}</p>}
+              return (
+                <div key={msg.id} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[70%] rounded-lg p-3 shadow-sm relative ${isOutbound ? 'bg-whatsapp-light rounded-tr-none' : 'bg-white rounded-tl-none'}`}>
+                    {showSender && isOutbound && (
+                      <div className="text-xs font-medium text-slate-500 mb-1 flex items-center space-x-1">
+                        {msg.sender === MessageSender.AI ? <Bot size={12} /> : <User size={12} />}
+                        <span>{msg.sender === MessageSender.AI ? 'Gemini AI' : 'Agent'}</span>
                       </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
                     )}
-                    <div className={`flex items-center gap-1 mt-1 text-xs ${
-                      msg.sender === 'AGENT' || msg.sender === 'AI' ? 'text-brand-100' : 'text-slate-400'
-                    }`}>
-                      <span>{new Date(msg.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
-                      {msg.sender === 'AGENT' && (
-                        msg.status === 'READ' ? <CheckCheck size={14} /> : <Check size={14} />
+                    
+                    {msg.mediaUrl && msg.mediaType === 'image' && (
+                      <img src={msg.mediaUrl} alt="Media" className="max-w-full rounded-md mb-2" />
+                    )}
+                    {msg.mediaUrl && msg.mediaType === 'video' && (
+                      <video src={msg.mediaUrl} controls className="max-w-full rounded-md mb-2" />
+                    )}
+                    {msg.mediaUrl && msg.mediaType === 'audio' && (
+                      <audio src={msg.mediaUrl} controls className="max-w-full mb-2" />
+                    )}
+                    {msg.mediaUrl && msg.mediaType === 'document' && (
+                      <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline mb-2 block">Download Document</a>
+                    )}
+
+                    <p className="text-slate-800 text-sm whitespace-pre-wrap">{msg.text}</p>
+                    <div className="flex items-center justify-end space-x-1 mt-1">
+                      <span className="text-[10px] text-slate-500">{formatTime(msg.timestamp)}</span>
+                      {isOutbound && msg.status && (
+                        <span className="text-slate-400">
+                          {msg.status === MessageStatus.SENT && <Check size={12} />}
+                          {msg.status === MessageStatus.DELIVERED && <CheckCheck size={12} />}
+                          {msg.status === MessageStatus.READ && <CheckCheck size={12} className="text-blue-500" />}
+                          {msg.status === MessageStatus.FAILED && <span className="text-red-500 ml-1 text-[10px]">Failed</span>}
+                        </span>
                       )}
-                      {msg.sender === 'AI' && <Bot size={14} />}
                     </div>
                   </div>
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Area */}
-            <div className="p-4 border-t border-slate-200 bg-white">
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                  title="إرفاق ملف"
-                >
-                  {uploading ? <Loader2 className="animate-spin" size={20} /> : <Paperclip size={20} />}
-                </button>
-                <textarea
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="اكتب رسالتك..."
-                  className="flex-1 p-2 border border-slate-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  rows={1}
-                />
-                <button
-                  onClick={handleSendText}
-                  disabled={sending || !newMessage.trim()}
-                  className="p-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {sending ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-500">
-            اختر محادثة للبدء
+              );
+            })}
+            <div ref={messagesEndRef} />
           </div>
-        )}
-      </div>
+
+          {/* Input Area */}
+          <div className="bg-slate-100 p-4 border-t border-slate-200">
+            {!botActive && (
+              <div className="mb-2 text-xs text-center text-slate-500 bg-yellow-100 py-1 rounded">
+                Human Takeover Active. AI is paused for this conversation.
+              </div>
+            )}
+            <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+              <input 
+                type="text" 
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                placeholder="Type a message..." 
+                className="flex-1 py-3 px-4 rounded-full border-none focus:ring-2 focus:ring-brand-500 shadow-sm"
+              />
+              <button 
+                type="submit"
+                disabled={!messageInput.trim()}
+                className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                <Send size={20} className="ml-1" />
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center bg-slate-50">
+          <div className="text-center text-slate-500">
+            <MessageSquare size={48} className="mx-auto mb-4 opacity-20" />
+            <p>Select a conversation to start messaging</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
