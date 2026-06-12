@@ -1,0 +1,94 @@
+backend/
+├── prisma/
+│   ├── schema.prisma
+│   └── migrations/
+├── src/
+│   ├── main.ts
+│   ├── app.module.ts
+│   ├── common/
+│   │   ├── decorators/
+│   │   │   ├── current-user.decorator.ts
+│   │   │   └── roles.decorator.ts
+│   │   ├── filters/
+│   │   │   └── all-exceptions.filter.ts
+│   │   ├── guards/
+│   │   │   ├── jwt-auth.guard.ts
+│   │   │   └── roles.guard.ts
+│   │   └── interceptors/
+│   │       └── transform.interceptor.ts
+│   ├── config/
+│   │   └── configuration.ts
+│   ├── auth/
+│   │   ├── auth.module.ts
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   ├── dto/
+│   │   │   └── auth.dto.ts
+│   │   └── strategies/
+│   │       └── jwt.strategy.ts
+│   ├── users/
+│   │   ├── users.module.ts
+│   │   ├── users.controller.ts
+│   │   ├── users.service.ts
+│   │   └── dto/
+│   │       └── user.dto.ts
+│   ├── customers/
+│   │   ├── customers.module.ts
+│   │   ├── customers.controller.ts
+│   │   ├── customers.service.ts
+│   │   └── dto/
+│   │       └── customer.dto.ts
+│   ├── conversations/
+│   │   ├── conversations.module.ts
+│   │   ├── conversations.controller.ts
+│   │   ├── conversations.service.ts
+│   │   └── dto/
+│   │       └── conversation.dto.ts
+│   ├── messages/
+│   │   ├── messages.module.ts
+│   │   ├── messages.controller.ts
+│   │   ├── messages.service.ts
+│   │   └── dto/
+│   │       └── message.dto.ts
+│   ├── whatsapp/
+│   │   ├── whatsapp.module.ts
+│   │   ├── whatsapp.controller.ts
+│   │   ├── whatsapp.service.ts
+│   │   ├── meta-api.service.ts
+│   │   ├── payload-parser.service.ts
+│   │   └── signature-validator.service.ts
+│   ├── ai/
+│   │   ├── ai.module.ts
+│   │   ├── ai.controller.ts
+│   │   ├── ai.service.ts
+│   │   ├── vertex.provider.ts
+│   │   ├── memory.service.ts
+│   │   ├── prompt.service.ts
+│   │   └── dto/
+│   │       └── ai.dto.ts
+│   ├── broadcasts/
+│   │   ├── broadcasts.module.ts
+│   │   ├── broadcasts.controller.ts
+│   │   ├── broadcasts.service.ts
+│   │   ├── broadcasts.processor.ts
+│   │   └── dto/
+│   │       └── broadcast.dto.ts
+│   ├── templates/
+│   │   ├── templates.module.ts
+│   │   ├── templates.controller.ts
+│   │   ├── templates.service.ts
+│   │   └── dto/
+│   │       └── template.dto.ts
+│   ├── dashboard/
+│   │   ├── dashboard.module.ts
+│   │   ├── dashboard.controller.ts
+│   │   └── dashboard.service.ts
+│   └── events/
+│       ├── events.module.ts
+│       └── events.gateway.ts
+├── Dockerfile
+├── Dockerfile.worker
+├── docker-compose.yml
+├── package.json
+├── tsconfig.json
+└── .env.example

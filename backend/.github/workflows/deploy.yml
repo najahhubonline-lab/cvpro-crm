@@ -1,0 +1,64 @@
+name: Build and Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main # استبدله بـ master لو فرعك الرئيسي على جيت هاب اسمه master
+
+env:
+  PROJECT_ID: cvpro-499119
+  REGION: us-central1
+  GAR_LOCATION: us-central1-docker.pkg.dev/cvpro-499119/cvpro-repo
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # الربط الآمن باستخدام الـ Workload Identity Pool الذي قمنا بإنشائه
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: 'projects/562848593668/locations/global/workloadIdentityPools/cvpro-github-pool/providers/cvpro-github-provider'
+        service_account: 'cvpro-github-deployer@cvpro-499119.iam.gserviceaccount.com'
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configure Docker for GCP
+      run: |
+        gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+    # 1. بناء ورفع صورة الـ Backend
+    - name: Build and Push Backend Image
+      run: |
+        docker build -t ${{ env.GAR_LOCATION }}/backend:latest -f Dockerfile .
+        docker push ${{ env.GAR_LOCATION }}/backend:latest
+
+    # 2. تشغيل الـ Deploy لخدمة الـ Backend على Cloud Run
+    - name: Deploy to Cloud Run Backend Service
+      run: |
+        gcloud run deploy cvpro-backend \
+          --image=${{ env.GAR_LOCATION }}/backend:latest \
+          --region=${{ env.REGION }} \
+          --allow-unauthenticated
+
+    # 3. بناء ورفع صورة الـ Worker باستخدام Dockerfile.worker
+    - name: Build and Push Worker Image
+      run: |
+        docker build -t ${{ env.GAR_LOCATION }}/worker:latest -f Dockerfile.worker .
+        docker push ${{ env.GAR_LOCATION }}/worker:latest
+
+    # 4. تشغيل الـ Deploy لخدمة الـ Worker على Cloud Run
+    - name: Deploy to Cloud Run Worker Service
+      run: |
+        gcloud run deploy cvpro-worker \
+          --image=${{ env.GAR_LOCATION }}/worker:latest \
+          --region=${{ env.REGION }} \
+          --allow-unauthenticated

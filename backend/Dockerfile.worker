@@ -1,0 +1,29 @@
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# تثبيت الأدوات المطلوبة لبناء المكتبات الـ Native مثل pprof
+RUN apk add --no-cache python3 make g++ build-base
+
+COPY backend/package*.json ./backend/
+COPY backend/prisma ./backend/prisma/
+RUN cd backend && npm install
+
+COPY backend/ ./backend/
+RUN cd backend && npx prisma generate && npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/backend/node_modules ./node_modules
+COPY --from=builder /app/backend/dist ./dist
+COPY --from=builder /app/backend/package*.json ./
+COPY --from=builder /app/backend/prisma ./prisma
+
+COPY index.html ./dist/client/
+COPY index.tsx ./dist/client/
+COPY App.tsx ./dist/client/
+COPY types.ts ./dist/client/
+COPY components/ ./dist/client/components/
+COPY pages/ ./dist/client/pages/
+COPY services/ ./dist/client/services/
+
+CMD ["node", "dist/worker.js"]

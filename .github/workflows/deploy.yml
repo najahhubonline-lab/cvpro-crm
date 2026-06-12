@@ -1,0 +1,59 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT }}
+  REGION: us-central1
+  REPO_NAME: cvpro-repo
+  SERVICE_NAME: cvpro-backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - id: 'auth'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+        
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v1'
+      
+    - name: 'Docker Auth'
+      run: |-
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+        
+    - name: 'Build and Push Container'
+      run: |-
+        docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} ./backend
+        docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+        
+    # CRITICAL FIX: Update the migration job with the new image before executing it
+    - name: 'Run Prisma Migrations'
+      run: |
+        gcloud run jobs update cvpro-migrate \
+          --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+          --region ${{ env.REGION }}
+        gcloud run jobs execute cvpro-migrate --region ${{ env.REGION }} --wait
+        
+    - name: 'Deploy Backend to Cloud Run'
+      uses: 'google-github-actions/deploy-cloudrun@v1'
+      with:
+        service: '${{ env.SERVICE_NAME }}'
+        image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}'
+        region: '${{ env.REGION }}'
+
+    # CRITICAL FIX: Deploy dedicated background worker to prevent BullMQ starvation
+    - name: 'Deploy Worker to Cloud Run'
+      uses: 'google-github-actions/deploy-cloudrun@v1'
+      with:
+        service: 'cvpro-worker'
+        image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}'
+        region: '${{ env.REGION }}'

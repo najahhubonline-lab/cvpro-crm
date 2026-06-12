@@ -1,0 +1,12 @@
+node_modules/
+backend/node_modules/
+dist/
+.env
+.env.local
+*.log
+proxy.log
+cloud-sql-proxy
+.terraform/
+*.tfstate
+*.tfstate.backup
+.DS_Store

@@ -1,0 +1,160 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  AGENT
+  VIEWER
+}
+
+enum LeadStage {
+  NEW
+  QUALIFIED
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum MessageSender {
+  USER
+  AI
+  AGENT
+  SYSTEM
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role     @default(AGENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+model Customer {
+  id          String    @id @default(uuid())
+  phone       String    @unique
+  name        String?
+  email       String?
+  stage       LeadStage @default(NEW)
+  lastContact DateTime  @default(now())
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  conversations Conversation[]
+}
+
+model Conversation {
+  id            String   @id @default(uuid())
+  customerId    String
+  unreadCount   Int      @default(0)
+  botActive     Boolean  @default(true)
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([customerId])
+}
+
+model Message {
+  id             String        @id @default(uuid())
+  conversationId String
+  waMessageId    String?       @unique
+  text           String?
+  mediaUrl       String?
+  mediaType      String?
+  sender         MessageSender
+  status         MessageStatus @default(SENT)
+  timestamp      DateTime      @default(now())
+  metadata       Json?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model Broadcast {
+  id             String          @id @default(uuid())
+  name           String
+  templateId     String
+  status         BroadcastStatus @default(DRAFT)
+  targetAudience Json
+  scheduledFor   DateTime?
+  sentCount      Int             @default(0)
+  deliveredCount Int             @default(0)
+  readCount      Int             @default(0)
+  failedCount    Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  template Template @relation(fields: [templateId], references: [id])
+
+  @@index([status])
+}
+
+model Template {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  language   String   @default("en")
+  category   String
+  components Json
+  status     String   @default("APPROVED")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  broadcasts Broadcast[]
+}
+
+model WebhookEvent {
+  id        String   @id @default(uuid())
+  type      String
+  payload   Json
+  processed Boolean  @default(false)
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([processed])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
